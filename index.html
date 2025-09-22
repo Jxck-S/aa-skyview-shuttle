@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AA Skyview DFW Bus Shuttle Schedule</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <div class="logo-section">
+                <h1>AA Skyview Employee Shuttle</h1>
+                <h2>DFW Airport ↔ Flight Academy & The Landing</h2>
+                <p class="unofficial-notice">Official Schedule - Unofficial Website</p>
+            </div>
+            <div class="current-time">
+                <div id="current-time"></div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="controls">
+            <div class="terminal-selector">
+                <button id="terminal-a" class="terminal-btn active">Terminal A19/A20 (Lower Level)</button>
+                <button id="terminal-d" class="terminal-btn">Terminal D29 (Upper Level)</button>
+            </div>
+            <div class="toggles-container">
+                <div class="time-format-toggle">
+                    <label class="switch">
+                        <input type="checkbox" id="time-format-toggle">
+                        <span class="slider"></span>
+                    </label>
+                    <span class="toggle-label">24-hour format</span>
+                </div>
+                <div class="remaining-only-toggle">
+                    <label class="switch">
+                        <input type="checkbox" id="remaining-only-toggle" checked>
+                        <span class="slider"></span>
+                    </label>
+                    <span class="toggle-label">Show remaining only</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="route-info">
+            <h3>Employee Shuttle Route</h3>
+            <p class="service-notice">For American Airlines employees and authorized personnel only</p>
+            <div class="route-stops">
+                <div class="stop">1. DFW Airport</div>
+                <div class="arrow">→</div>
+                <div class="stop">2. Flight Academy (SV3)</div>
+                <div class="arrow">→</div>
+                <div class="stop">3. The Landing (SV6)</div>
+                <div class="arrow">→</div>
+                <div class="stop">4. DFW Airport</div>
+            </div>
+        </div>
+
+        <div class="bus-status-section">
+            <h3>Current Bus Locations</h3>
+            <div id="bus-status-container">
+                <!-- Bus status will be populated by JavaScript -->
+            </div>
+        </div>
+
+        <div class="schedule-container">
+            <div id="schedule-a" class="schedule-section active">
+                <h3>Terminal A19/A20 (Lower Level) Schedule</h3>
+                <div class="table-container">
+                    <table class="schedule-table">
+                        <thead>
+                            <tr>
+                                <th>Depart Airport</th>
+                                <th>Arrive/Depart SV3</th>
+                                <th>Depart SV6</th>
+                                <th>Arrive Airport</th>
+                            </tr>
+                        </thead>
+                        <tbody id="schedule-a-body">
+                            <!-- Schedule data will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="schedule-d" class="schedule-section">
+                <h3>Terminal D29 (Upper Level) Schedule</h3>
+                <div class="table-container">
+                    <table class="schedule-table">
+                        <thead>
+                            <tr>
+                                <th>Depart Airport</th>
+                                <th>Arrive/Depart SV3</th>
+                                <th>Depart SV6</th>
+                                <th>Arrive Airport</th>
+                            </tr>
+                        </thead>
+                        <tbody id="schedule-d-body">
+                            <!-- Schedule data will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color current"></div>
+                <span>Current departure</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color next"></div>
+                <span>Next departure</span>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>Unofficial website - Official schedule data. Times in local timezone.</p>
+        <p class="last-updated">Schedule data last updated: <span id="last-updated-date"></span></p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
