@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AA Skyview DFW Bus Shuttle Schedule</title>
+    <link rel="icon" type="image/png" href="favicon.png">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -45,8 +46,7 @@
         </div>
 
         <div class="route-info">
-            <h3>Employee Shuttle Route</h3>
-            <p class="service-notice">For American Airlines employees and authorized personnel only</p>
+            <h3>Shuttle Route</h3>
             <div class="route-stops">
                 <div class="stop">1. DFW Airport</div>
                 <div class="arrow">→</div>
@@ -59,7 +59,7 @@
         </div>
 
         <div class="bus-status-section">
-            <h3>Current Bus Locations</h3>
+            <h3>Estimated Bus Locations</h3>
             <div id="bus-status-container">
                 <!-- Bus status will be populated by JavaScript -->
             </div>
@@ -106,19 +106,12 @@
         </div>
 
         <div class="legend">
-            <div class="legend-item">
-                <div class="legend-color current"></div>
-                <span>Current departure</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color next"></div>
-                <span>Next departure</span>
-            </div>
+            <!-- Legend will be populated dynamically by JavaScript -->
         </div>
     </main>
 
     <footer>
-        <p>Unofficial website - Official schedule data. Times in local timezone.</p>
+        <p>Unofficial website - Official schedule data. All times in CDT (Dallas timezone).</p>
         <p class="last-updated">Schedule data last updated: <span id="last-updated-date"></span></p>
     </footer>
 

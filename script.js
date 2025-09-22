@@ -103,84 +103,162 @@ function formatTime(timeStr, use24Hour = false) {
     const time = parseTime(timeStr);
     if (!time) return '-';
     
-    if (use24Hour) {
-        return time.toLocaleTimeString('en-US', { 
-            hour: '2-digit', 
-            minute: '2-digit', 
-            hour12: false 
-        });
-    } else {
-        return time.toLocaleTimeString('en-US', { 
-            hour: 'numeric', 
-            minute: '2-digit', 
-            hour12: true 
-        });
-    }
+    const options = {
+        timeZone: 'America/Chicago',
+        hour12: !use24Hour,
+        hour: use24Hour ? '2-digit' : 'numeric',
+        minute: '2-digit'
+    };
+    
+    return time.toLocaleTimeString('en-US', options);
 }
 
 function getCurrentTime() {
     const now = new Date();
-    if (is24HourFormat) {
-        return now.toLocaleTimeString('en-US', { 
-            hour: '2-digit', 
-            minute: '2-digit', 
-            second: '2-digit',
-            hour12: false 
-        });
-    } else {
-        return now.toLocaleTimeString('en-US', { 
-            hour: 'numeric', 
-            minute: '2-digit', 
-            second: '2-digit',
-            hour12: true 
-        });
-    }
+    const options = {
+        timeZone: 'America/Chicago',
+        hour12: !is24HourFormat,
+        hour: is24HourFormat ? '2-digit' : 'numeric',
+        minute: '2-digit',
+        second: '2-digit'
+    };
+    
+    const timeString = now.toLocaleTimeString('en-US', options);
+    return `${timeString} Dallas`;
 }
 
-function findCurrentAndNextDepartures(schedule) {
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+function findConnectedTrips(schedule) {
+    const connections = [];
+    const busColors = ['bus-1', 'bus-2', 'bus-3', 'bus-4'];
+    let colorIndex = 0;
+    const used = new Set();
     
-    let currentIndex = -1;
-    let nextIndex = -1;
+    // Sort schedule by departure time to process in chronological order
+    const sortedSchedule = schedule.map((trip, index) => ({ trip, originalIndex: index }))
+        .filter(item => item.trip.depart_airport && item.trip.depart_airport.trim() !== '')
+        .sort((a, b) => {
+            const timeA = timeToMinutes(a.trip.depart_airport);
+            const timeB = timeToMinutes(b.trip.depart_airport);
+            return timeA - timeB;
+        });
     
-    for (let i = 0; i < schedule.length; i++) {
-        const departure = schedule[i];
-        if (!departure.depart_airport || departure.depart_airport.trim() === '') continue;
+    for (let i = 0; i < sortedSchedule.length; i++) {
+        const currentItem = sortedSchedule[i];
+        if (used.has(currentItem.originalIndex)) continue;
         
-        const departTime = parseTime(departure.depart_airport);
-        if (!departTime) continue;
+        const busTrips = [currentItem.originalIndex];
+        used.add(currentItem.originalIndex);
         
-        const departMinutes = departTime.getHours() * 60 + departTime.getMinutes();
+        let currentTrip = currentItem.trip;
         
-        if (Math.abs(departMinutes - currentMinutes) <= 5) {
-            currentIndex = i;
-        } else if (departMinutes > currentMinutes && nextIndex === -1) {
-            nextIndex = i;
-            break;
-        }
-    }
-    
-    // If no next departure found, check for overnight schedules
-    if (nextIndex === -1) {
-        for (let i = 0; i < schedule.length; i++) {
-            const departure = schedule[i];
-            if (!departure.depart_airport || departure.depart_airport.trim() === '') continue;
+        // Build this bus route by finding the next logical connection
+        while (true) {
+            let nextConnection = null;
+            let shortestWait = Infinity;
             
-            const departTime = parseTime(departure.depart_airport);
-            if (!departTime) continue;
+            // Look for the next trip that could be the same bus
+            for (let j = 0; j < sortedSchedule.length; j++) {
+                const candidateItem = sortedSchedule[j];
+                if (used.has(candidateItem.originalIndex)) continue;
+                
+                const candidateTrip = candidateItem.trip;
+                
+                // Check if this trip could follow the current trip
+                if (isConnectedTrip(currentTrip.arrive_airport, candidateTrip.depart_airport)) {
+                    const arrivalMinutes = timeToMinutes(currentTrip.arrive_airport);
+                    const departureMinutes = timeToMinutes(candidateTrip.depart_airport);
+                    
+                    if (arrivalMinutes !== null && departureMinutes !== null) {
+                        let waitTime = departureMinutes - arrivalMinutes;
+                        
+                        // Handle overnight
+                        if (waitTime < 0) {
+                            waitTime = (departureMinutes + 1440) - arrivalMinutes;
+                        }
+                        
+                        // Prefer shorter waits (more likely to be same bus)
+                        // But also prefer connections that are reasonable (under 4 hours)
+                        if (waitTime < shortestWait && waitTime <= 240) { // Max 4 hour wait
+                            shortestWait = waitTime;
+                            nextConnection = candidateItem;
+                        }
+                    }
+                }
+            }
             
-            const departMinutes = departTime.getHours() * 60 + departTime.getMinutes();
-            
-            // Check for early morning departures (next day)
-            if (departMinutes < 360) { // Before 6 AM
-                nextIndex = i;
-                break;
+            if (nextConnection) {
+                busTrips.push(nextConnection.originalIndex);
+                used.add(nextConnection.originalIndex);
+                currentTrip = nextConnection.trip;
+            } else {
+                break; // No more connections for this bus
             }
         }
+        
+        // Only create a bus route if it has multiple trips
+        if (busTrips.length > 1) {
+            connections.push({
+                trips: busTrips,
+                color: busColors[colorIndex % busColors.length]
+            });
+            colorIndex++;
+        }
     }
     
-    return { currentIndex, nextIndex };
+    return connections;
+}
+
+function isConnectedTrip(arrivalTime, departureTime) {
+    if (!arrivalTime || !departureTime) return false;
+    
+    // Parse times and convert to minutes
+    const arrivalMinutes = timeToMinutes(arrivalTime);
+    const departureMinutes = timeToMinutes(departureTime);
+    
+    if (arrivalMinutes === null || departureMinutes === null) return false;
+    
+    // Bus can depart at arrival time or any time after, but never before
+    const timeDiff = departureMinutes - arrivalMinutes;
+    
+    // Handle overnight scenarios (departure next day)
+    if (timeDiff < -720) { // If difference is more than 12 hours negative, likely overnight
+        const adjustedTimeDiff = (departureMinutes + 1440) - arrivalMinutes;
+        return adjustedTimeDiff >= 0;
+    }
+    
+    return timeDiff >= 0;
+}
+
+function timeToMinutes(timeStr) {
+    if (!timeStr) return null;
+    
+    // Remove quotes and clean up
+    timeStr = timeStr.replace(/"/g, '').trim();
+    
+    const parts = timeStr.split(':');
+    if (parts.length !== 2) return null;
+    
+    const hours = parseInt(parts[0]);
+    const minutes = parseInt(parts[1]);
+    
+    if (isNaN(hours) || isNaN(minutes)) return null;
+    
+    return hours * 60 + minutes;
+}
+
+function getTripColor(tripIndex, connections) {
+    for (const connection of connections) {
+        if (connection.trips.includes(tripIndex)) {
+            return connection.color;
+        }
+    }
+    return '';
+}
+
+function getDetectedBuses(terminal) {
+    const schedule = terminal === 'A' ? scheduleData.terminalA : scheduleData.terminalD;
+    const connections = findConnectedTrips(schedule);
+    return connections.map(conn => conn.color);
 }
 
 function filterScheduleByTime(schedule) {
@@ -192,23 +270,25 @@ function filterScheduleByTime(schedule) {
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
     
     return schedule.filter(departure => {
-        if (!departure.depart_airport || departure.depart_airport.trim() === '') {
+        if (!departure.arrive_airport || departure.arrive_airport.trim() === '') {
             return false;
         }
         
-        const departTime = parseTime(departure.depart_airport);
-        if (!departTime) return false;
+        const arriveTime = parseTime(departure.arrive_airport);
+        if (!arriveTime) return false;
         
-        const departMinutes = departTime.getHours() * 60 + departTime.getMinutes();
+        const arriveMinutes = arriveTime.getHours() * 60 + arriveTime.getMinutes();
         
-        // Show departures that haven't left yet (with 2-minute buffer for boarding)
-        // Also include overnight schedules (early morning departures)
-        if (departMinutes >= currentMinutes - 2) {
+        // Hide trip only if it's been 10+ minutes since arrival at airport
+        // Show if arrival + 10 minutes is still in the future
+        const tripEndMinutes = arriveMinutes + 10;
+        
+        if (tripEndMinutes >= currentMinutes) {
             return true;
         }
         
-        // Handle overnight schedules - show early morning departures if it's late evening
-        if (currentMinutes >= 1320 && departMinutes < 360) { // After 10 PM, show before 6 AM
+        // Handle overnight schedules - show early morning arrivals if it's late evening
+        if (currentMinutes >= 1320 && arriveMinutes < 360) { // After 10 PM, show before 6 AM
             return true;
         }
         
@@ -216,13 +296,45 @@ function filterScheduleByTime(schedule) {
     });
 }
 
+function isCurrentlyActive(departure) {
+    if (!departure.depart_airport || !departure.arrive_airport) return false;
+    
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    
+    const departTime = parseTime(departure.depart_airport);
+    const arriveTime = parseTime(departure.arrive_airport);
+    
+    if (!departTime || !arriveTime) return false;
+    
+    const departMinutes = departTime.getHours() * 60 + departTime.getMinutes();
+    let arriveMinutes = arriveTime.getHours() * 60 + arriveTime.getMinutes();
+    
+    // Handle overnight trips
+    if (arriveMinutes < departMinutes) {
+        arriveMinutes += 1440; // Add 24 hours
+        
+        // If it's early morning and we have an overnight trip
+        if (currentMinutes < 360 && departMinutes > 1200) { // Before 6 AM and departure after 8 PM
+            const adjustedCurrentMinutes = currentMinutes + 1440;
+            return adjustedCurrentMinutes >= departMinutes && adjustedCurrentMinutes <= arriveMinutes;
+        }
+        
+        // Regular overnight check
+        return currentMinutes >= departMinutes || currentMinutes <= (arriveMinutes - 1440);
+    }
+    
+    // Regular same-day trip
+    return currentMinutes >= departMinutes && currentMinutes <= arriveMinutes;
+}
+
 function renderSchedule(terminal) {
     const schedule = terminal === 'A' ? scheduleData.terminalA : scheduleData.terminalD;
     const filteredSchedule = filterScheduleByTime(schedule);
     const tableBody = document.getElementById(`schedule-${terminal.toLowerCase()}-body`);
     
-    // Find current and next departures from filtered schedule
-    const { currentIndex, nextIndex } = findCurrentAndNextDepartures(filteredSchedule);
+    // Find connected trips for color coding
+    const connections = findConnectedTrips(schedule);
     
     // Clear existing content
     tableBody.innerHTML = '';
@@ -240,14 +352,26 @@ function renderSchedule(terminal) {
     }
     
     // Render schedule rows
-    filteredSchedule.forEach((departure, index) => {
+    filteredSchedule.forEach((departure, filteredIndex) => {
         const row = document.createElement('tr');
         
-        // Add highlighting classes
-        if (index === currentIndex) {
-            row.classList.add('current');
-        } else if (index === nextIndex) {
-            row.classList.add('next');
+        // Find the original index in the full schedule for color coding
+        const originalIndex = schedule.findIndex(item => 
+            item.depart_airport === departure.depart_airport && 
+            item.sv3 === departure.sv3 && 
+            item.sv6 === departure.sv6 && 
+            item.arrive_airport === departure.arrive_airport
+        );
+        
+        // Add bus color class if this trip is part of a connected bus route
+        const busColor = getTripColor(originalIndex, connections);
+        if (busColor) {
+            row.classList.add(busColor);
+        }
+        
+        // Add active trip highlight if currently in progress
+        if (isCurrentlyActive(departure)) {
+            row.classList.add('active-trip');
         }
         
         row.innerHTML = `
@@ -266,7 +390,36 @@ function toggleRemainingOnly() {
     renderSchedule(currentTerminal);
 }
 
+function updateLegend(terminal) {
+    const detectedBuses = getDetectedBuses(terminal);
+    const legendContainer = document.querySelector('.legend');
+    
+    if (detectedBuses.length === 0) {
+        legendContainer.innerHTML = `
+            <div class="legend-item">
+                <span>No connected bus routes detected</span>
+            </div>
+        `;
+        return;
+    }
+    
+    const busNames = {
+        'bus-1': 'Bus Route 1',
+        'bus-2': 'Bus Route 2', 
+        'bus-3': 'Bus Route 3',
+        'bus-4': 'Bus Route 4'
+    };
+    
+    legendContainer.innerHTML = detectedBuses.map(busColor => `
+        <div class="legend-item">
+            <div class="legend-color ${busColor}-color"></div>
+            <span>${busNames[busColor]}</span>
+        </div>
+    `).join('');
+}
+
 function switchTerminal(terminal) {
+    currentTerminal = terminal;
     
     // Update button states
     if (terminal === 'A') {
@@ -281,8 +434,9 @@ function switchTerminal(terminal) {
         scheduleASection.classList.remove('active');
     }
     
-    // Re-render the schedule
+    // Re-render the schedule and update legend
     renderSchedule(terminal);
+    updateLegend(terminal);
 }
 
 function updateCurrentTime() {
@@ -292,6 +446,7 @@ function updateCurrentTime() {
 function toggleTimeFormat() {
     is24HourFormat = timeFormatToggle.checked;
     renderSchedule(currentTerminal);
+    renderBusStatus(); // Add this to update the timeline
     updateCurrentTime();
 }
 
@@ -352,13 +507,12 @@ function getCurrentBusStatus() {
             if (busIsActive) {
                 let location = '';
                 let locationDetail = '';
-                let busNumber = `Bus #${index + 1}`;
                 
                 if (adjustedCurrentMinutes >= adjustedDepartMinutes && adjustedCurrentMinutes < adjustedSv3Minutes) {
                     location = 'En route to Flight Academy (SV3)';
                     const etaMinutes = adjustedSv3Minutes - adjustedCurrentMinutes;
                     locationDetail = `Left DFW Airport at ${formatTime(departure.depart_airport, is24HourFormat)}, arriving at SV3 in ~${etaMinutes} min`;
-                } else if (adjustedCurrentMinutes >= adjustedSv3Minutes && adjustedCurrentMinutes < adjustedSv6Minutes) {
+                } else if (adjustedCurrentMinutes >= adjustedSv3Minutes && adjustedCurrentMinutes < adjustedSv3Minutes + 5) {
                     location = 'At Flight Academy (SV3)';
                     const departureMinutes = adjustedSv6Minutes - adjustedCurrentMinutes;
                     if (departureMinutes > 0) {
@@ -366,7 +520,19 @@ function getCurrentBusStatus() {
                     } else {
                         locationDetail = `Departing for The Landing at ${formatTime(departure.sv6, is24HourFormat)}`;
                     }
-                } else if (adjustedCurrentMinutes >= adjustedSv6Minutes && adjustedCurrentMinutes < adjustedArriveMinutes) {
+                } else if (adjustedCurrentMinutes >= adjustedSv3Minutes + 5 && adjustedCurrentMinutes < adjustedSv6Minutes) {
+                    location = 'En route to The Landing (SV6)';
+                    const etaMinutes = adjustedSv6Minutes - adjustedCurrentMinutes;
+                    locationDetail = `Left Flight Academy at ${formatTime(departure.sv3, is24HourFormat)}, arriving at The Landing in ~${etaMinutes} min`;
+                } else if (adjustedCurrentMinutes >= adjustedSv6Minutes && adjustedCurrentMinutes < adjustedSv6Minutes + 5) {
+                    location = 'At The Landing (SV6)';
+                    const departureMinutes = adjustedArriveMinutes - adjustedCurrentMinutes;
+                    if (departureMinutes > 0) {
+                        locationDetail = `Arrived at ${formatTime(departure.sv6, is24HourFormat)}, departing for DFW in ~${departureMinutes} min`;
+                    } else {
+                        locationDetail = `Departing for DFW Airport at ${formatTime(departure.arrive_airport, is24HourFormat)}`;
+                    }
+                } else if (adjustedCurrentMinutes >= adjustedSv6Minutes + 5 && adjustedCurrentMinutes < adjustedArriveMinutes) {
                     location = 'En route to DFW Airport';
                     const etaMinutes = adjustedArriveMinutes - adjustedCurrentMinutes;
                     locationDetail = `Left The Landing at ${formatTime(departure.sv6, is24HourFormat)}, arriving at DFW in ~${etaMinutes} min`;
@@ -375,7 +541,6 @@ function getCurrentBusStatus() {
                 activeBuses.push({
                     terminal: terminalLabel,
                     terminalClass: terminal === 'terminalA' ? 'terminal-a' : 'terminal-d',
-                    busNumber: busNumber,
                     departure: departure,
                     location: location,
                     locationDetail: locationDetail,
@@ -400,21 +565,133 @@ function renderBusStatus() {
         return;
     }
     
-    busStatusContainer.innerHTML = activeBuses.map(bus => `
-        <div class="bus-status-item ${bus.terminalClass}">
-            <div class="bus-header">
-                <span class="bus-terminal">${bus.terminal} - ${bus.busNumber}</span>
-                <span class="bus-time">Departed: ${bus.currentTime}</span>
-            </div>
-            <div class="bus-location">
-                <div class="location-indicator"></div>
-                <div class="location-text">
-                    <strong>${bus.location}</strong><br>
-                    ${bus.locationDetail}
+    busStatusContainer.innerHTML = activeBuses.map(bus => {
+        const departure = bus.departure;
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        
+        // Helper function to calculate minutes until a time
+        function getMinutesUntil(timeStr) {
+            if (!timeStr) return null;
+            const time = parseTime(timeStr);
+            if (!time) return null;
+            
+            let targetMinutes = time.getHours() * 60 + time.getMinutes();
+            let diff = targetMinutes - currentMinutes;
+            
+            // Handle overnight scenarios
+            if (diff < -720) { // If more than 12 hours ago, probably tomorrow
+                diff += 1440;
+            }
+            
+            return diff;
+        }
+        
+        // Create timeline with all stops and time calculations
+        const timelineStops = [
+            { 
+                name: 'DFW Airport', 
+                time: formatTime(departure.depart_airport, is24HourFormat),
+                minutesUntil: getMinutesUntil(departure.depart_airport),
+                status: getStopStatus(getMinutesUntil(departure.depart_airport), bus.location, 'DFW Airport')
+            },
+            { 
+                name: 'Flight Academy (SV3)', 
+                time: formatTime(departure.sv3, is24HourFormat),
+                minutesUntil: getMinutesUntil(departure.sv3),
+                status: getStopStatus(getMinutesUntil(departure.sv3), bus.location, 'Flight Academy')
+            },
+            { 
+                name: 'The Landing (SV6)', 
+                time: formatTime(departure.sv6, is24HourFormat),
+                minutesUntil: getMinutesUntil(departure.sv6),
+                status: getStopStatus(getMinutesUntil(departure.sv6), bus.location, 'The Landing')
+            },
+            { 
+                name: 'DFW Airport', 
+                time: formatTime(departure.arrive_airport, is24HourFormat),
+                minutesUntil: getMinutesUntil(departure.arrive_airport),
+                status: getStopStatus(getMinutesUntil(departure.arrive_airport), bus.location, 'DFW Airport Return')
+            }
+        ];
+
+        // Helper function to determine stop status based on time and location
+        function getStopStatus(minutesUntil, busLocation, stopName) {
+            // If the time has passed by more than 10 minutes, it's definitely completed
+            if (minutesUntil < -10) {
+                return 'completed';
+            }
+            
+            // If time has passed at all (even by a few minutes), it's completed
+            if (minutesUntil < 0) {
+                return 'completed';
+            }
+            
+            // Current stop logic - only if time hasn't passed yet
+            if (stopName === 'DFW Airport' && busLocation.includes('DFW')) {
+                return 'current';
+            }
+            if (stopName === 'Flight Academy' && (busLocation.includes('Flight Academy') || busLocation.includes('En route to Flight Academy'))) {
+                return 'current';
+            }
+            if (stopName === 'The Landing' && (busLocation.includes('The Landing') || busLocation.includes('En route to The Landing'))) {
+                return 'current';
+            }
+            if (stopName === 'DFW Airport Return' && busLocation.includes('En route to DFW')) {
+                return 'current';
+            }
+            
+            // If within 15 minutes of the scheduled time and not past, it could be current
+            if (minutesUntil >= 0 && minutesUntil <= 15) {
+                // Check for transitional states
+                if (stopName === 'Flight Academy' && busLocation.includes('En route to Flight Academy')) {
+                    return 'current';
+                }
+                if (stopName === 'The Landing' && (busLocation.includes('At Flight Academy') || busLocation.includes('En route to The Landing'))) {
+                    return 'current';
+                }
+                if (stopName === 'DFW Airport Return' && (busLocation.includes('At The Landing') || busLocation.includes('En route to DFW'))) {
+                    return 'current';
+                }
+            }
+            
+            // Everything else is upcoming
+            return 'upcoming';
+        }
+        
+        const timelineHTML = timelineStops.map(stop => {
+            let timeUntilText = '';
+            if (stop.minutesUntil !== null) {
+                if (stop.minutesUntil <= 0) {
+                    timeUntilText = Math.abs(stop.minutesUntil) === 0 ? 'now' : `${Math.abs(stop.minutesUntil)} mins ago`;
+                } else {
+                    timeUntilText = `in ${stop.minutesUntil} mins`;
+                }
+            }
+            
+            return `
+                <div class="timeline-stop ${stop.status}">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-content">
+                        <div class="stop-name">${stop.name}</div>
+                        <div class="stop-time">${stop.time}</div>
+                        <div class="time-until">${timeUntilText}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        return `
+            <div class="bus-status-item ${bus.terminalClass}">
+                <div class="bus-header">
+                    <span class="bus-terminal">${bus.terminal}</span>
+                </div>
+                <div class="bus-timeline">
+                    ${timelineHTML}
                 </div>
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 // Event listeners
