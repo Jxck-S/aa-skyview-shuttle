@@ -605,15 +605,15 @@ input:checked + .slider:before {
 .schedule-table tr.active-trip::after {
     content: '';
     position: absolute;
-    top: 16px;
-    left: 30px;
-    right: 30px;
-    bottom: 16px;
+    top: 24px;
+    left: 50px;
+    right: 50px;
+    bottom: 24px;
     background: linear-gradient(90deg, 
         rgba(255, 165, 0, 0.7) 0%, 
         rgba(255, 140, 0, 0.85) 50%, 
         rgba(255, 165, 0, 0.7) 100%);
-    border-radius: 6px;
+    border-radius: 3px;
     pointer-events: none;
     z-index: 1;
     animation: activeTrip 2s ease-in-out infinite alternate;
@@ -764,11 +764,17 @@ footer p {
     }
 
     /* Fix active trip highlighting for mobile */
+    .schedule-table tr.active-trip {
+        overflow: hidden;
+    }
+    
     .schedule-table tr.active-trip::after {
-        left: 10px;
-        right: 10px;
+        left: 12px;
+        right: 12px;
         top: 8px;
         bottom: 8px;
+        border-radius: 2px;
+        z-index: 1;
     }
 
     .bus-header {
@@ -834,12 +840,20 @@ footer p {
     }
 
     /* Further adjust active trip highlighting for very small screens */
+    .schedule-table tr.active-trip {
+        overflow: hidden;
+        position: relative;
+    }
+    
     .schedule-table tr.active-trip::after {
-        left: 5px;
-        right: 5px;
+        left: 6px;
+        right: 6px;
         top: 4px;
         bottom: 4px;
-        border-radius: 4px;
+        border-radius: 1px;
+        z-index: 1;
+        transform: none;
+        animation: none;
     }
 
     main {
