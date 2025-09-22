@@ -700,6 +700,20 @@ terminalDBtn.addEventListener('click', () => switchTerminal('D'));
 timeFormatToggle.addEventListener('change', toggleTimeFormat);
 remainingOnlyToggle.addEventListener('change', toggleRemainingOnly);
 
+// Toggle route info visibility
+function toggleRouteInfo() {
+    const routeContent = document.querySelector('.route-content');
+    const toggleIcon = document.querySelector('.toggle-icon');
+    
+    if (routeContent.style.display === 'none') {
+        routeContent.style.display = 'block';
+        toggleIcon.textContent = '▲';
+    } else {
+        routeContent.style.display = 'none';
+        toggleIcon.textContent = '▼';
+    }
+}
+
 // Initialize the page
 function init() {
     // Set last updated date
