@@ -621,6 +621,8 @@ input:checked + .slider:before {
     animation: activeTrip 2s ease-in-out infinite alternate;
     box-shadow: 0 0 12px rgba(255, 140, 0, 0.5),
                 inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    display: table-cell;
+    max-width: 100%;
 }
 
 .schedule-table tr.active-trip td {
@@ -768,6 +770,7 @@ footer p {
     /* Fix active trip highlighting for mobile */
     .schedule-table tr.active-trip {
         overflow: hidden;
+        contain: layout;
     }
     
     .schedule-table tr.active-trip::after {
@@ -775,6 +778,8 @@ footer p {
         left: 8px;
         right: 8px;
         bottom: 6px;
+        max-width: calc(100% - 16px);
+        width: auto;
     }
     
 
@@ -848,6 +853,7 @@ footer p {
     .schedule-table tr.active-trip {
         overflow: hidden;
         position: relative;
+        contain: layout style;
     }
     
     .schedule-table tr.active-trip::after {
@@ -855,6 +861,9 @@ footer p {
         left: 4px;
         right: 4px;
         bottom: 4px;
+        max-width: calc(100% - 8px);
+        width: auto;
+        box-sizing: border-box;
     }
     
 
