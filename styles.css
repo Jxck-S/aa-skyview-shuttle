@@ -751,7 +751,26 @@ footer p {
         white-space: nowrap;
     }
 
-    /* Active trip border works consistently on mobile */
+    /* Active trip border - simplified for mobile */
+    .schedule-table tr.active-trip {
+        border-top: 3px solid rgba(255, 140, 0, 0.9) !important;
+        border-right: 3px solid rgba(255, 140, 0, 0.9) !important;
+        border-bottom: 3px solid rgba(255, 140, 0, 0.9) !important;
+        /* Keep original left border for bus colors */
+        box-shadow: 0 0 8px rgba(255, 140, 0, 0.4) !important;
+        animation: activeTripMobile 2s ease-in-out infinite alternate;
+    }
+    
+    @keyframes activeTripMobile {
+        0% { 
+            border-color: rgba(255, 140, 0, 0.7);
+            box-shadow: 0 0 6px rgba(255, 140, 0, 0.3);
+        }
+        100% { 
+            border-color: rgba(255, 140, 0, 1);
+            box-shadow: 0 0 12px rgba(255, 140, 0, 0.6);
+        }
+    }
     
 
 
@@ -827,7 +846,15 @@ footer p {
         text-overflow: ellipsis;
     }
 
-    /* Active trip border works consistently on small screens */
+    /* Active trip border - ensure visibility on small screens */
+    .schedule-table tr.active-trip {
+        border-top: 2px solid rgba(255, 140, 0, 1) !important;
+        border-right: 2px solid rgba(255, 140, 0, 1) !important;
+        border-bottom: 2px solid rgba(255, 140, 0, 1) !important;
+        /* Preserve left border for bus colors */
+        box-shadow: 0 0 6px rgba(255, 140, 0, 0.5) !important;
+        border-radius: 4px !important;
+    }
     
 
 
